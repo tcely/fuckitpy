@@ -96,7 +96,6 @@ class _fuckit(types.ModuleType):
         module, or a function.
         """
         import inspect
-        import imp
         import ast
         import types
         import sys
@@ -104,13 +103,29 @@ class _fuckit(types.ModuleType):
         import functools
         import re
 
+        # imp was removed in 3.12
+        __imp__PY_SOURCE = 1
+        if sys.version_info >= (3, 12,):
+            import importlib
+        else:
+            import imp
+            __imp__PY_SOURCE = imp.PY_SOURCE
         PY3 = sys.version_info[0] == 3
         if PY3:
+            def find_module(v):
+                if sys.version_info < (3, 12,):
+                    return imp.find_module(v)
+                # TODO: actually implement this with importlib
+                sf = pn = a = b = None
+                mt = int()
+                return (sf, pn, (a, b, mt,))
             basestring = str
             get_func_code = lambda f: f.__code__
             exec_ = __builtins__['exec']
             types.ClassType = type
         else:
+            def find_module(v):
+                return imp.find_module(v)
             basestring = __builtins__['basestring']
             get_func_code = lambda f: f.func_code
 
@@ -119,8 +134,8 @@ class _fuckit(types.ModuleType):
                 exec('exec _code_ in _globs_, _locs_')
 
         if isinstance(victim, basestring):
-            sourcefile, pathname, (_, _, module_type) = imp.find_module(victim)
-            if module_type == imp.PY_SOURCE:
+            sourcefile, pathname, (_, _, module_type) = find_module(victim)
+            if module_type == __imp__PY_SOURCE:
                 source = sourcefile.read()
                 # If we have the source, we can silence SyntaxErrors by
                 # compiling the module with more and more lines removed until
